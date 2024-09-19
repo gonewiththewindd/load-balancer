@@ -12,10 +12,11 @@ import java.util.Optional;
  * 前缀树（最长前缀匹配）
  * TODO：支持双通配符**的规则配置和解析（代表着任意长度）
  */
-public class TrieTreeImpl implements TrieTree {
+public class TrieTreeRouteImpl implements Route {
 
     public static final String SPLIT_CHARACTER = "/";
-    public static final String WILDCARDS = "*";
+    public static final String SINGLE_WILDCARDS = "*";
+    public static final String DOUBLE_WILDCARDS = "**";
 
     private TrieTreeNode root = new TrieTreeNode();
 
@@ -27,26 +28,19 @@ public class TrieTreeImpl implements TrieTree {
             if (StringUtils.isBlank(segments[i])) {
                 continue;
             }
-            // 搜索当前所有子节点，获取到匹配的节点列表
-            List<TrieTreeNode> matchList = searchTheMatchList(current, segments, i);
-            if (CollectionUtils.isEmpty(matchList)) {
+            // 搜索共同路径节点
+            TrieTreeNode commonPathNode = lookupCommonPath(current, segments[i]);
+            if (Objects.isNull(commonPathNode)) {
                 // 共同路径未匹配创建分叉节点
-                appendChild(current, segments, i, upstream);
+                appendRestAsChild(current, segments, i, upstream);
                 break;
             } else {
-                // 选中优先级最高的节点作为匹配节点
-                TrieTreeNode bestMatchNode = bestMatch(matchList);
-                if (Objects.nonNull(bestMatchNode) && WILDCARDS.equals(bestMatchNode.getVal())) {
-                    // 节点本身为通配符的情况下，应该视为同级，创建分叉节点
-                    appendChild(current, segments, i, upstream);
-                    break;
-                }
-                current = bestMatchNode;
+                current = commonPathNode;
             }
         }
     }
 
-    private void appendChild(TrieTreeNode current, String[] segments, int i, String upstream) {
+    private void appendRestAsChild(TrieTreeNode current, String[] segments, int i, String upstream) {
         boolean isLeaf = i == segments.length - 1;
         TrieTreeNode son = TrieTreeNode.of(segments[i], new ArrayList<>(), isLeaf, upstream);
         if (!isLeaf) { // 递归构造子节点
@@ -73,16 +67,33 @@ public class TrieTreeImpl implements TrieTree {
         }
         Optional<TrieTreeNode> nonWildcardNode = matchList
                 .stream()
-                .filter(n -> !WILDCARDS.equals(n.getVal()))
+                .filter(n -> !SINGLE_WILDCARDS.equals(n.getVal()))
                 .findFirst();
         if (nonWildcardNode.isPresent()) {
             return nonWildcardNode.get();
         }
         return matchList
                 .stream()
-                .filter(n -> WILDCARDS.equals(n.getVal()))
+                .filter(n -> SINGLE_WILDCARDS.equals(n.getVal()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * 共同路径节点搜索
+     *
+     * @param current
+     * @param segment
+     * @return
+     */
+    private TrieTreeNode lookupCommonPath(TrieTreeNode current, String segment) {
+        for (int j = 0; j < current.getChildren().size(); j++) {
+            TrieTreeNode node = current.getChildren().get(j);
+            if (node.getVal().equals(segment)) {
+                return node;
+            }
+        }
+        return null;
     }
 
     private List<TrieTreeNode> searchTheMatchList(TrieTreeNode current, String[] segments, int i) {
@@ -94,10 +105,16 @@ public class TrieTreeImpl implements TrieTree {
             TrieTreeNode node = current.getChildren().get(j);
             if (node.getVal().equals(segment)) { // 全匹配
                 matchList.add(node);
-            } else if (node.containsWildcards()) {// 单通配符匹配，比如 *, select*Users, *getUser, getUser*. 多通配符？？
-                int wi = node.getVal().indexOf(WILDCARDS);
+            } else if (node.containsWildcards()) {
+                // 单通配符、双通配符匹配（*，**）
+                if (SINGLE_WILDCARDS.equals(node.getVal()) || DOUBLE_WILDCARDS.equals(node.getVal())) {
+                    matchList.add(node);
+                    continue;
+                }
+                // 单通配符匹配，比如select*Users, *getUser, getUser*. 多通配符？？
+                int wi = node.getVal().indexOf(SINGLE_WILDCARDS);
                 if (wi == 0 || (segment.length() > wi && node.getVal().substring(0, wi).equals(segment.substring(0, wi)))) { // 前缀匹配
-                    if (wi == node.getVal().length() - 1) { // 无后缀：*, getUser*（匹配）
+                    if (wi == node.getVal().length() - 1) { // 无后缀：getUser*（匹配）
                         matchList.add(node);
                         continue;
                     }
@@ -124,6 +141,8 @@ public class TrieTreeImpl implements TrieTree {
     public String search(String path) {
         TrieTreeNode current = root;
         String[] segments = path.split(SPLIT_CHARACTER);
+        List<TrieTreeNode> targetList = new ArrayList<>();
+        List<TrieTreeNode> doubleWildcardMatchList = new ArrayList<>();
         for (int i = 0; i < segments.length; i++) {
             if (StringUtils.isBlank(segments[i])) {
                 continue;
@@ -131,23 +150,46 @@ public class TrieTreeImpl implements TrieTree {
             // 搜索当前所有子节点，获取到匹配的节点列表
             List<TrieTreeNode> matchList = searchTheMatchList(current, segments, i);
             if (CollectionUtils.isEmpty(matchList)) {
-                return "404";
+                return null;
             }
+            doubleWildcardMatchList.forEach(n -> {
+
+            });
+            matchList.stream()
+                    .filter(n -> DOUBLE_WILDCARDS.equals(n.getVal()))
+                    .forEach(n -> {
+                        if (CollectionUtils.isEmpty(n.getChildren())) {
+                            // 如果双通配符节点没有子节点，意味着一定是匹配的
+                            targetList.add(n);
+                        } else {
+                            doubleWildcardMatchList.add(n);
+                        }
+                    });
+            // TODO 双通配符什么情况下会匹配失效呢？ 比如 /**/users/aaaaa
+            // 在到达segments的倒数第二个节点时开始需要校验双通配符的剩余部分是否生效
+            // 怎么知道segments当前的节点位置呢？通过i
+            // 怎么知道当前匹配节点的深度呢？
+
+
             // 选中优先级最高的节点作为匹配节点
             TrieTreeNode bestMatchNode = bestMatch(matchList);
             current = bestMatchNode;
+
+
         }
         if (current.isLeaf()) {
             return current.getUpstream();
         }
-        return "404";
+        return null;
     }
 
     public static void main(String[] args) {
-        TrieTree tree = new TrieTreeImpl();
+        Route tree = new TrieTreeRouteImpl();
         // *, select*Users, *getUser, getUser*
         tree.insert("/api/user-service/*", "user-service");
         tree.insert("/api/user-service/select*Users", "user-service");
+        tree.insert("/api/user-service/selectAllUsers", "user-service");
+        tree.insert("/api/user-service/selectPaymentUsers", "user-service");
         tree.insert("/api/user-service/*getUser", "user-service");
         tree.insert("/api/user-service/getUser*", "user-service");
 

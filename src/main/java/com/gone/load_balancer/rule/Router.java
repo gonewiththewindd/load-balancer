@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class Router {
 
-    private TrieTree trieTree;
+    private Route trieTree;
 
     public String route(String requestURI) {
         String upstreamId = trieTree.search(requestURI);
@@ -18,10 +18,12 @@ public class Router {
 
     @PostConstruct
     public void init() {
-        trieTree = new TrieTreeImpl();
+        trieTree = new TrieTreeRouteImpl();
         // *, select*Users, *getUser, getUser*
         trieTree.insert("/api/user-service/users/*", "user-service");
         trieTree.insert("/api/user-service/users/select*Users", "user-service");
+        trieTree.insert("/api/user-service/users/selectAllUsers", "user-service");
+        trieTree.insert("/api/user-service/users/selectPaymentUsers", "user-service");
         trieTree.insert("/api/user-service/users/*getUser", "user-service");
         trieTree.insert("/api/user-service/users/getUser*", "user-service");
     }

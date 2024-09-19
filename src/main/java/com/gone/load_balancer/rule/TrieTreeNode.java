@@ -20,7 +20,7 @@ public class TrieTreeNode {
     private String upstream;
 
     public boolean containsWildcards() {
-        return this.val.contains(TrieTreeImpl.WILDCARDS);
+        return this.val.contains(TrieTreeRouteImpl.SINGLE_WILDCARDS);
     }
 
     public static TrieTreeNode of(String val, List<TrieTreeNode> children, boolean isLeaf, String upstream) {

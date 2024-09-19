@@ -1,7 +1,5 @@
 package com.gone.load_balancer.endpoint;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gone.load_balancer.common.LoadBalanceEnums;
 import com.gone.load_balancer.pool.HttpClientPooledConnectionManager;
 import com.gone.load_balancer.rule.Router;
 import com.gone.load_balancer.strategy.LoadBalanceStrategy;
@@ -11,6 +9,7 @@ import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -20,21 +19,18 @@ import org.apache.http.entity.InputStreamEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Controller
 @RequestMapping
 public class ListenEndpoint {
 
+    public static final String SCHEMA = "http://";
     @Autowired
     HttpClientPooledConnectionManager httpClientConnectionManager;
     @Autowired
@@ -53,30 +49,36 @@ public class ListenEndpoint {
     private Router router;
 
     @RequestMapping("/**")
-    public void incomingRequest(HttpServletRequest req, HttpServletResponse res) {
+    public void incomingRequest(HttpServletRequest req, HttpServletResponse res) throws IOException {
         String requestURI = req.getRequestURI();
         String upstreamId = router.route(requestURI);
-        if ("404".equals(upstreamId)) {
-            try {
-                res.getOutputStream().write(new String("resource not found").getBytes(StandardCharsets.UTF_8));
-                return;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        if (Objects.nonNull(upstreamId)) {
+            Upstream upstream = upstreamMap.get(upstreamId);
+            LoadBalanceStrategy balanceStrategy = strategyMap.get(upstream.getLbe().getValue());
+            Service service = balanceStrategy.loadBalance(req, upstream);
+            String upstreamRequestURI = convertToUpstreamRequestURI(req, requestURI, service);
+            dispatchRequest(upstreamRequestURI, req, res);
+        } else {
+            try (ServletOutputStream outputStream = res.getOutputStream()) {
+                outputStream.write(new String("resource not found").getBytes(StandardCharsets.UTF_8));
             }
         }
-        Upstream upstream = upstreamMap.get(upstreamId);
-        LoadBalanceEnums lbe = upstream.getLbe();
-        LoadBalanceStrategy balanceStrategy = strategyMap.get(lbe.getValue());
-        Service service = balanceStrategy.loadBalance(req, upstream);
-        // URI截取
+    }
+
+    private String convertToUpstreamRequestURI(HttpServletRequest req, String requestURI, Service service) {
         String prefix = req.getContextPath();
         int i = requestURI.indexOf(prefix);
         if (i >= 0) {
             requestURI = requestURI.substring(i + prefix.length());
         }
-        String upstreamRequestURI = "http://".concat(service.getHost()).concat(":").concat(String.valueOf(service.getPort()))
-                .concat(requestURI).concat("?").concat(req.getQueryString());
-        dispatchRequest(upstreamRequestURI, req, res);
+        String upstreamRequestURI = SCHEMA.concat(service.getHost())
+                .concat(":")
+                .concat(String.valueOf(service.getPort()))
+                .concat(requestURI);
+        if (StringUtils.isNoneBlank(req.getQueryString())) {
+            upstreamRequestURI = upstreamRequestURI.concat("?").concat(req.getQueryString());
+        }
+        return upstreamRequestURI;
     }
 
     private void dispatchRequest(String upstreamRequestURI, HttpServletRequest req, HttpServletResponse res) {
@@ -159,6 +161,9 @@ public class ListenEndpoint {
         Enumeration<String> headerNames = req.getHeaderNames();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
+            if ("Content-Length".equalsIgnoreCase(headerName)) {
+                continue;
+            }
             httpRequest.setHeader(headerName, req.getHeader(headerName));
         }
     }
