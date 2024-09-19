@@ -1,5 +1,6 @@
 package com.gone.load_balancer.endpoint;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gone.load_balancer.common.LoadBalanceEnums;
 import com.gone.load_balancer.pool.HttpClientPooledConnectionManager;
 import com.gone.load_balancer.rule.Router;
@@ -9,6 +10,8 @@ import com.gone.load_balancer.upstream.Upstream;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.http.Header;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
@@ -17,46 +20,75 @@ import org.apache.http.entity.InputStreamEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Controller
-@RequestMapping("/")
+@RequestMapping
 public class ListenEndpoint {
 
     @Autowired
     HttpClientPooledConnectionManager httpClientConnectionManager;
     @Autowired
     private Map<String, LoadBalanceStrategy> strategyMap;
-    @Autowired
-    private Map<String, Upstream> upstreamMap;
+
+    private Map<String, Upstream> upstreamMap = new HashMap<>() {{
+        Service service1 = new Service();
+        service1.setServiceName("user-service-instance-1");
+        service1.setIp("127.0.0.1");
+        service1.setHost("127.0.0.1");
+        service1.setPort(8088);
+        Upstream upstream = new Upstream("user-service", null, Arrays.asList(service1));
+        put("user-service", upstream);
+    }};
     @Autowired
     private Router router;
 
-    @RequestMapping
+    @RequestMapping("/**")
     public void incomingRequest(HttpServletRequest req, HttpServletResponse res) {
         String requestURI = req.getRequestURI();
         String upstreamId = router.route(requestURI);
         if ("404".equals(upstreamId)) {
-
+            try {
+                res.getOutputStream().write(new String("resource not found").getBytes(StandardCharsets.UTF_8));
+                return;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
         Upstream upstream = upstreamMap.get(upstreamId);
         LoadBalanceEnums lbe = upstream.getLbe();
         LoadBalanceStrategy balanceStrategy = strategyMap.get(lbe.getValue());
         Service service = balanceStrategy.loadBalance(req, upstream);
-        String upstreamRequestURI = service.getIp().concat(requestURI);
+        // URI截取
+        String prefix = req.getContextPath();
+        int i = requestURI.indexOf(prefix);
+        if (i >= 0) {
+            requestURI = requestURI.substring(i + prefix.length());
+        }
+        String upstreamRequestURI = "http://".concat(service.getHost()).concat(":").concat(String.valueOf(service.getPort()))
+                .concat(requestURI).concat("?").concat(req.getQueryString());
         dispatchRequest(upstreamRequestURI, req, res);
     }
 
     private void dispatchRequest(String upstreamRequestURI, HttpServletRequest req, HttpServletResponse res) {
+        log.info("dispatch request to '{}'", upstreamRequestURI);
         HttpRequest httpRequest = convertServletRequestToHttpClientRequest(upstreamRequestURI, req);
         HttpResponse httpResponse = httpClientConnectionManager.execute(httpRequest);
         transferResponse(httpResponse, res);
     }
 
     private void transferResponse(HttpResponse httpResponse, HttpServletResponse res) {
+        log.info("transfer response from upstream...");
+        transferHeaders(httpResponse, res);
         StatusLine statusLine = httpResponse.getStatusLine();
         try (InputStream content = httpResponse.getEntity().getContent();
              ServletOutputStream outputStream = res.getOutputStream()) {
@@ -70,6 +102,12 @@ public class ListenEndpoint {
         }
         if (statusLine.getStatusCode() != 200) {
             // failed
+        }
+    }
+
+    private void transferHeaders(HttpResponse httpResponse, HttpServletResponse res) {
+        for (Header header : httpResponse.getAllHeaders()) {
+            res.addHeader(header.getName(), header.getValue());
         }
     }
 
@@ -124,4 +162,5 @@ public class ListenEndpoint {
             httpRequest.setHeader(headerName, req.getHeader(headerName));
         }
     }
+
 }

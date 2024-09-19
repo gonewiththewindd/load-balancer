@@ -24,7 +24,7 @@ public class Upstream {
         if (Objects.nonNull(lbe)) {
             this.lbe = lbe;
         }
-        if (LoadBalanceEnums.POLL.equals(lbe)) {
+        if (LoadBalanceEnums.POLL.equals(this.lbe)) {
             int weightSum = this.services.stream()
                     .mapToInt(Service::getWeight)
                     .sum();

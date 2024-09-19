@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 public class Service {
     private String serviceName;
     private String ip;
+    private String host;
+    private int port;
     private int weight = 1;
     private String status;
 }
