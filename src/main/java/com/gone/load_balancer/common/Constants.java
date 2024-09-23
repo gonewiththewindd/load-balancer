@@ -6,4 +6,14 @@ public interface Constants {
     String LOAD_BALANCE_STRATEGY_POOL = "POLL";
     String LOAD_BALANCE_STRATEGY_IP_HASH = "IP_HASH";
 
+
+    String PATH_SEPARATOR = "/";
+    String SINGLE_WILDCARDS = "*";
+    String SINGLE_WILDCARDS_REPLACEMENT = "<-!->";
+    String DOUBLE_WILDCARDS = "**";
+    String DOUBLE_WILDCARDS_REPLACEMENT = "<-!--!->";
+
+
+    String SCHEMA = "http://";
+
 }

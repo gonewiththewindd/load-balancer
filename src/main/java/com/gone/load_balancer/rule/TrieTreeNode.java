@@ -1,5 +1,6 @@
 package com.gone.load_balancer.rule;
 
+import com.gone.load_balancer.common.Constants;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,7 +21,7 @@ public class TrieTreeNode {
     private String upstream;
 
     public boolean containsWildcards() {
-        return this.val.contains(TrieTreeRouteImpl.SINGLE_WILDCARDS);
+        return this.val.contains(Constants.SINGLE_WILDCARDS);
     }
 
     public static TrieTreeNode of(String val, List<TrieTreeNode> children, boolean isLeaf, String upstream) {

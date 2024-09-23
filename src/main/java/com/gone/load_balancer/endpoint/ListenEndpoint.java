@@ -1,5 +1,6 @@
 package com.gone.load_balancer.endpoint;
 
+import com.gone.load_balancer.LoadBalancerApplication;
 import com.gone.load_balancer.pool.HttpClientPooledConnectionManager;
 import com.gone.load_balancer.rule.Router;
 import com.gone.load_balancer.strategy.LoadBalanceStrategy;
@@ -18,19 +19,22 @@ import org.apache.http.client.methods.*;
 import org.apache.http.entity.InputStreamEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+
+import static com.gone.load_balancer.common.Constants.SCHEMA;
 
 @Slf4j
 @Controller
 @RequestMapping
 public class ListenEndpoint {
 
-    public static final String SCHEMA = "http://";
     @Autowired
     HttpClientPooledConnectionManager httpClientConnectionManager;
     @Autowired
@@ -45,25 +49,26 @@ public class ListenEndpoint {
         Upstream upstream = new Upstream("user-service", null, Arrays.asList(service1));
         put("user-service", upstream);
     }};
+
     @Autowired
     private Router router;
 
-    @RequestMapping("/**")
-    public void incomingRequest(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        String requestURI = req.getRequestURI();
-        String upstreamId = router.route(requestURI);
-        if (Objects.nonNull(upstreamId)) {
-            Upstream upstream = upstreamMap.get(upstreamId);
-            LoadBalanceStrategy balanceStrategy = strategyMap.get(upstream.getLbe().getValue());
-            Service service = balanceStrategy.loadBalance(req, upstream);
-            String upstreamRequestURI = convertToUpstreamRequestURI(req, requestURI, service);
-            dispatchRequest(upstreamRequestURI, req, res);
-        } else {
-            try (ServletOutputStream outputStream = res.getOutputStream()) {
-                outputStream.write(new String("resource not found").getBytes(StandardCharsets.UTF_8));
-            }
-        }
-    }
+//    @RequestMapping("/**")
+//    public void incomingRequest(HttpServletRequest req, HttpServletResponse res) throws IOException {
+//        String requestURI = req.getRequestURI();
+//        String upstreamId = router.route(requestURI);
+//        if (Objects.nonNull(upstreamId)) {
+//            Upstream upstream = upstreamMap.get(upstreamId);
+//            LoadBalanceStrategy balanceStrategy = strategyMap.get(upstream.getLbe().getValue());
+//            Service service = balanceStrategy.loadBalance(new LBParams(req.getRemoteAddr(), requestURI), upstream);
+//            String upstreamRequestURI = convertToUpstreamRequestURI(req, requestURI, service);
+//            dispatchRequest(upstreamRequestURI, req, res);
+//        } else {
+//            try (ServletOutputStream outputStream = res.getOutputStream()) {
+//                outputStream.write(new String("resource not found").getBytes(StandardCharsets.UTF_8));
+//            }
+//        }
+//    }
 
     private String convertToUpstreamRequestURI(HttpServletRequest req, String requestURI, Service service) {
         String prefix = req.getContextPath();
@@ -90,7 +95,7 @@ public class ListenEndpoint {
 
     private void transferResponse(HttpResponse httpResponse, HttpServletResponse res) {
         log.info("transfer response from upstream...");
-        transferHeaders(httpResponse, res);
+//        transferHeaders(httpResponse, res);
         StatusLine statusLine = httpResponse.getStatusLine();
         try (InputStream content = httpResponse.getEntity().getContent();
              ServletOutputStream outputStream = res.getOutputStream()) {
@@ -166,6 +171,11 @@ public class ListenEndpoint {
             }
             httpRequest.setHeader(headerName, req.getHeader(headerName));
         }
+    }
+
+    @GetMapping("/stopServer")
+    public void stopServer() {
+        LoadBalancerApplication.server.stop();
     }
 
 }

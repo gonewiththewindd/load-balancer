@@ -8,22 +8,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static com.gone.load_balancer.common.Constants.*;
+
 /**
  * 前缀树（最长前缀匹配）
  * TODO：支持双通配符**的规则配置和解析（代表着任意长度）
  */
 public class TrieTreeRouteImpl implements Route {
 
-    public static final String SPLIT_CHARACTER = "/";
-    public static final String SINGLE_WILDCARDS = "*";
-    public static final String DOUBLE_WILDCARDS = "**";
-
     private TrieTreeNode root = new TrieTreeNode();
 
     @Override
     public void insert(String path, String upstream) {
         TrieTreeNode current = root;
-        String[] segments = path.split(SPLIT_CHARACTER);
+        String[] segments = path.split(PATH_SEPARATOR);
         for (int i = 0; i < segments.length; i++) {
             if (StringUtils.isBlank(segments[i])) {
                 continue;
@@ -140,7 +138,7 @@ public class TrieTreeRouteImpl implements Route {
     @Override
     public String search(String path) {
         TrieTreeNode current = root;
-        String[] segments = path.split(SPLIT_CHARACTER);
+        String[] segments = path.split(PATH_SEPARATOR);
         List<TrieTreeNode> targetList = new ArrayList<>();
         List<TrieTreeNode> doubleWildcardMatchList = new ArrayList<>();
         for (int i = 0; i < segments.length; i++) {
@@ -174,8 +172,6 @@ public class TrieTreeRouteImpl implements Route {
             // 选中优先级最高的节点作为匹配节点
             TrieTreeNode bestMatchNode = bestMatch(matchList);
             current = bestMatchNode;
-
-
         }
         if (current.isLeaf()) {
             return current.getUpstream();

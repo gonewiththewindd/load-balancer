@@ -10,20 +10,15 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.gone.load_balancer.common.Constants.*;
+
 /**
  * 哈希+正则表达式
  */
 public class HashRegexRouteImpl implements Route {
 
-    public static final String SPLIT_CHARACTER = "/";
-    public static final String SINGLE_WILDCARDS = "*";
-    public static final String SINGLE_WILDCARDS_REPLACEMENT = "<-!->";
-    public static final String DOUBLE_WILDCARDS = "**";
-    public static final String DOUBLE_WILDCARDS_REPLACEMENT = "<-!--!->";
-
     private Map<String, KeyValue<String, String>> map = new HashMap<>();
     private Map<Pattern, KeyValue<String, String>> regexMap = new HashMap<>();
-
 
     @Override
     public void insert(String path, String upstream) {

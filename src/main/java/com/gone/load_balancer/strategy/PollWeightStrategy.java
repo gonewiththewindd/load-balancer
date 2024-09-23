@@ -12,12 +12,12 @@ import org.springframework.stereotype.Component;
 @Component(Constants.LOAD_BALANCE_STRATEGY_POOL)
 public class PollWeightStrategy implements LoadBalanceStrategy {
     @Override
-    public Service loadBalance(HttpServletRequest request, Upstream upstream) {
+    public Service loadBalance(LBParams params, Upstream upstream) {
         long rc = RuntimeCounter.getUpstreamRequestCounter(upstream.getId()).incrementAndGet();
         long bitmapIndex = rc % upstream.getWeightsBitmap().length;
         int serviceIndex = upstream.getWeightsBitmap()[(int) bitmapIndex];
         Service service = upstream.getServices().get(serviceIndex);
-        log.info("request '{}' distribute to '{}', using load balance strategy '{}'", request.getRequestURI(), service, upstream.getLbe());
+        log.info("request '{}' distribute to '{}', using load balance strategy '{}'", params.getRequestURI(), service, upstream.getLbe());
         return service;
     }
 }
