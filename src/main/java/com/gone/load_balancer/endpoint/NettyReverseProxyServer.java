@@ -1,7 +1,7 @@
 package com.gone.load_balancer.endpoint;
 
 import com.gone.load_balancer.common.ProtocolTypeEnums;
-import com.gone.load_balancer.reverse.LoadBalanceHandler;
+import com.gone.load_balancer.handler.LoadBalanceHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -45,7 +45,7 @@ public class NettyReverseProxyServer {
                                     ch.pipeline().addLast(new HttpRequestDecoder());
                                     ch.pipeline().addLast(new HttpRequestDecoder());
                                     ch.pipeline().addLast(new HttpResponseEncoder());
-                                    ch.pipeline().addLast(new HttpObjectAggregator(1024 * 1024));
+                                    ch.pipeline().addLast(new HttpObjectAggregator(1024 * 1024 * 1024));
                                     ch.pipeline().addLast(new ChunkedWriteHandler());
                                 case TCP:
                                     break;

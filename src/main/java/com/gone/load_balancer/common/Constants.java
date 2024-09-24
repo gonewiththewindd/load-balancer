@@ -5,6 +5,7 @@ public interface Constants {
     String DEFAULT_LOAD_BALANCE_STRATEGY = LoadBalanceEnums.POLL.name();
     String LOAD_BALANCE_STRATEGY_POOL = "POLL";
     String LOAD_BALANCE_STRATEGY_IP_HASH = "IP_HASH";
+    String LOAD_BALANCE_STRATEGY_LEAST_CONNECTION = "LEAST_CONNECTION";
 
 
     String PATH_SEPARATOR = "/";
@@ -15,5 +16,6 @@ public interface Constants {
 
 
     String SCHEMA = "http://";
+    String COLON_CHAR = ":";
 
 }

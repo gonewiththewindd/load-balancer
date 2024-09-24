@@ -33,7 +33,7 @@ import static com.gone.load_balancer.common.Constants.SCHEMA;
 @Slf4j
 @Controller
 @RequestMapping
-public class ListenEndpoint {
+public class SpringMvcReverseProxyController {
 
     @Autowired
     HttpClientPooledConnectionManager httpClientConnectionManager;
